@@ -48,5 +48,29 @@ ProductSchema.index(
 );
 ProductSchema.index({ category: 1, isActive: 1 });
 
+// Cascade-like cleanup: remove CartItems and Reviews referencing this product
+ProductSchema.post("findOneAndDelete", async function (doc) {
+  if (!doc) return;
+  const CartItem = model("CartItem");
+  const Review = model("Review");
+  await Promise.all([
+    CartItem.deleteMany({ product: doc._id }),
+    Review.deleteMany({ product: doc._id }),
+  ]);
+});
+
+ProductSchema.post(
+  "deleteOne",
+  { document: true, query: false },
+  async function () {
+    const CartItem = model("CartItem");
+    const Review = model("Review");
+    await Promise.all([
+      CartItem.deleteMany({ product: this._id }),
+      Review.deleteMany({ product: this._id }),
+    ]);
+  }
+);
+
 const Product = model("Product", ProductSchema);
 export default Product;

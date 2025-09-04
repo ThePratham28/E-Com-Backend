@@ -30,5 +30,50 @@ CategorySchema.index(
   { unique: true, collation: { locale: "en", strength: 2 } }
 );
 
+// Cascade-like behavior on delete: if parentCategory exists, reassign products to the parent; otherwise block deletion when products exist
+CategorySchema.pre("findOneAndDelete", async function (next) {
+  const doc = await this.model.findOne(this.getFilter());
+  if (!doc) return next();
+  const Product = model("Product");
+  if (doc.parentCategory) {
+    await Product.updateMany(
+      { category: doc._id },
+      { $set: { category: doc.parentCategory } }
+    );
+    return next();
+  }
+  const count = await Product.countDocuments({ category: doc._id });
+  if (count > 0)
+    return next(
+      new Error(
+        "Cannot delete a root category that still has products. Move or reassign products first."
+      )
+    );
+  next();
+});
+
+CategorySchema.pre(
+  "deleteOne",
+  { document: true, query: false },
+  async function (next) {
+    const Product = model("Product");
+    if (this.parentCategory) {
+      await Product.updateMany(
+        { category: this._id },
+        { $set: { category: this.parentCategory } }
+      );
+      return next();
+    }
+    const count = await Product.countDocuments({ category: this._id });
+    if (count > 0)
+      return next(
+        new Error(
+          "Cannot delete a root category that still has products. Move or reassign products first."
+        )
+      );
+    next();
+  }
+);
+
 const Category = model("Category", CategorySchema);
 export default Category;

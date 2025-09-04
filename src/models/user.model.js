@@ -25,7 +25,7 @@ const UserSchema = new Schema(
       lowercase: true,
       trim: true,
       match: [
-        /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
+        /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
         "Please enter a valid email address",
       ],
     },
@@ -59,6 +59,30 @@ const UserSchema = new Schema(
 UserSchema.index(
   { username: 1 },
   { unique: true, collation: { locale: "en", strength: 2 } }
+);
+
+// Cascade-like cleanup: remove CartItems and Reviews created by this user on delete
+UserSchema.post("findOneAndDelete", async function (doc) {
+  if (!doc) return;
+  const CartItem = model("CartItem");
+  const Review = model("Review");
+  await Promise.all([
+    CartItem.deleteMany({ user: doc._id }),
+    Review.deleteMany({ user: doc._id }),
+  ]);
+});
+
+UserSchema.post(
+  "deleteOne",
+  { document: true, query: false },
+  async function () {
+    const CartItem = model("CartItem");
+    const Review = model("Review");
+    await Promise.all([
+      CartItem.deleteMany({ user: this._id }),
+      Review.deleteMany({ user: this._id }),
+    ]);
+  }
 );
 
 const User = model("User", UserSchema);
