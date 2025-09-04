@@ -1,4 +1,5 @@
 import { model, Schema } from "mongoose";
+import { hash, verify } from "argon2";
 
 const roles = Object.freeze({
   ADMIN: "admin",
@@ -84,6 +85,28 @@ UserSchema.post(
     ]);
   }
 );
+
+// Hash password before saving
+UserSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) {
+    return next();
+  }
+  try {
+    this.password = await hash(this.password);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Method to compare passwords
+UserSchema.methods.comparePassword = async function (enteredPassword) {
+  try {
+    return await verify(this.password, enteredPassword);
+  } catch (error) {
+    return false;
+  }
+};
 
 const User = model("User", UserSchema);
 
