@@ -1,5 +1,5 @@
 import { model, Schema } from "mongoose";
-import { hash, verify } from "argon2";
+import argon2 from "argon2";
 
 const roles = Object.freeze({
   ADMIN: "admin",
@@ -26,7 +26,7 @@ const UserSchema = new Schema(
       lowercase: true,
       trim: true,
       match: [
-        /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
         "Please enter a valid email address",
       ],
     },
@@ -92,7 +92,12 @@ UserSchema.pre("save", async function (next) {
     return next();
   }
   try {
-    this.password = await hash(this.password);
+    this.password = await argon2.hash(this.password, {
+      type: argon2.argon2id,
+      memoryCost: 2 ** 16,
+      timeCost: 5,
+      parallelism: 1,
+    });
     next();
   } catch (error) {
     next(error);
@@ -102,7 +107,7 @@ UserSchema.pre("save", async function (next) {
 // Method to compare passwords
 UserSchema.methods.comparePassword = async function (enteredPassword) {
   try {
-    return await verify(this.password, enteredPassword);
+    return await argon2.verify(this.password, enteredPassword);
   } catch (error) {
     return false;
   }

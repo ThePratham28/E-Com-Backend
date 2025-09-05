@@ -5,3 +5,4 @@ export { default as Review } from "./review.model.js";
 export { default as CartItem } from "./cart-item.model.js";
 export { default as Order } from "./order.model.js";
 export { default as Payment } from "./payment.model.js";
+export { default as Session } from "./session.model.js";

@@ -3,13 +3,14 @@ import helmet from "helmet";
 import cors from "cors";
 import compression from "compression";
 import pinoHttp from "pino-http";
+import cookieParser from "cookie-parser";
 import apiRouterV1 from "./api/routes/v1/index.js";
 import connectToDB, { closeDB } from "./configs/connect-to-db.js";
-import config, { isDev } from "./configs/config.js";
+import config from "./configs/config.js";
 import mongoose from "mongoose";
 
 const app = express();
-app.disable("x-powered-by"); 
+app.disable("x-powered-by");
 
 // Observability & security middlewares
 app.use(pinoHttp());
@@ -22,6 +23,7 @@ app.use(
 );
 app.use(compression());
 app.use(express.json({ limit: "100kb" }));
+app.use(cookieParser());
 
 // Health and readiness endpoints
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
