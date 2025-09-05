@@ -7,6 +7,7 @@ import {
   revokeParams,
 } from "../../dtos/session.dto.js";
 import { Session } from "../../../models/index.js";
+import logger from "../../../utils/logger.js";
 
 const router = Router();
 
@@ -33,6 +34,10 @@ router.get(
       const nextCursor = sessions.length
         ? sessions[sessions.length - 1]._id
         : null;
+      logger.info(
+        { userId: req.user.id, count: sessions.length },
+        "Listed sessions"
+      );
       res.json({ items: sessions, nextCursor });
     } catch (e) {
       next(e);
@@ -51,15 +56,32 @@ router.post(
       const baseFilter = { user: req.user.id, revokedAt: { $exists: false } };
 
       if (all) {
-        await Session.updateMany(baseFilter, {
+        const result = await Session.updateMany(baseFilter, {
           $set: { revokedAt: new Date() },
         });
+        logger.warn(
+          {
+            userId: req.user.id,
+            matched: result.matchedCount,
+            modified: result.modifiedCount,
+          },
+          "Revoked all sessions"
+        );
         return res.json({ success: true, scope: "all" });
       }
       if (deviceId) {
-        await Session.updateMany(
+        const result = await Session.updateMany(
           { ...baseFilter, deviceId },
           { $set: { revokedAt: new Date() } }
+        );
+        logger.warn(
+          {
+            userId: req.user.id,
+            deviceId,
+            matched: result.matchedCount,
+            modified: result.modifiedCount,
+          },
+          "Revoked device sessions"
         );
         return res.json({ success: true, scope: "device", deviceId });
       }
@@ -67,6 +89,10 @@ router.post(
         const result = await Session.updateOne(
           { ...baseFilter, jti },
           { $set: { revokedAt: new Date() } }
+        );
+        logger.warn(
+          { userId: req.user.id, jti, modified: result.modifiedCount },
+          "Revoked session by jti"
         );
         return res.json({
           success: result.modifiedCount > 0,
@@ -94,6 +120,10 @@ router.delete(
       const result = await Session.updateOne(
         { user: req.user.id, jti, revokedAt: { $exists: false } },
         { $set: { revokedAt: new Date() } }
+      );
+      logger.warn(
+        { userId: req.user.id, jti, modified: result.modifiedCount },
+        "Revoked session by param"
       );
       res.json({ success: result.modifiedCount > 0 });
     } catch (e) {

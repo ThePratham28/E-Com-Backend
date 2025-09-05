@@ -8,12 +8,36 @@ import apiRouterV1 from "./api/routes/v1/index.js";
 import connectToDB, { closeDB } from "./configs/connect-to-db.js";
 import config from "./configs/config.js";
 import mongoose from "mongoose";
+import logger from "./utils/logger.js";
 
 const app = express();
 app.disable("x-powered-by");
 
 // Observability & security middlewares
-app.use(pinoHttp());
+app.use(
+  pinoHttp({
+    logger,
+    customLogLevel: function (res, err) {
+      if (res.statusCode >= 500 || err) return "error";
+      if (res.statusCode >= 400) return "warn";
+      return "info";
+    },
+    autoLogging: { ignorePaths: ["/api/health", "/api/ready"] },
+    serializers: {
+      req(req) {
+        return {
+          id: req.id,
+          method: req.method,
+          url: req.url,
+          remoteAddress: req.ip,
+        };
+      },
+      res(res) {
+        return { statusCode: res.statusCode };
+      },
+    },
+  })
+);
 app.use(helmet());
 app.use(
   cors({
@@ -43,20 +67,21 @@ app.use(errorHandler);
 const server = app.listen(config.PORT, async () => {
   try {
     await connectToDB();
-    console.log(`Server listening on port ${config.PORT} [${config.NODE_ENV}]`);
+    logger.info(`Server listening on port ${config.PORT} [${config.NODE_ENV}]`);
   } catch (e) {
-    console.error("DB connection failed at startup", e?.message || e);
+    logger.error({ err: e }, "DB connection failed at startup");
   }
 });
 
 const shutdown = async (signal) => {
-  console.log(`${signal} received. Shutting down...`);
+  logger.warn(`${signal} received. Shutting down...`);
   server.close(async () => {
     try {
       await closeDB();
+      logger.info("Shutdown completed");
       process.exit(0);
     } catch (e) {
-      console.error("Error during shutdown", e?.message || e);
+      logger.error({ err: e }, "Error during shutdown");
       process.exit(1);
     }
   });

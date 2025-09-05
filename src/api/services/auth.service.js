@@ -6,6 +6,7 @@ import {
   signRefreshToken,
   verifyRefreshToken,
 } from "../../utils/jwt.js";
+import logger from "../../utils/logger.js";
 
 async function hashToken(token) {
   return argon2.hash(token, {
@@ -18,6 +19,7 @@ async function hashToken(token) {
 
 export async function register({ username, email, password }) {
   const user = await User.create({ username, email, password });
+  logger.info({ userId: user.id }, "User registered");
   return user.toJSON();
 }
 
@@ -52,6 +54,10 @@ export async function login({ email, password, deviceId, ip, userAgent }) {
     existingSession.userAgent = userAgent || existingSession.userAgent;
     existingSession.expiresAt = expiresAt;
     await existingSession.save();
+    logger.info(
+      { userId: user.id, deviceId: device, jti },
+      "Session upsert: updated existing"
+    );
   } else {
     await Session.create({
       user: user._id,
@@ -62,8 +68,10 @@ export async function login({ email, password, deviceId, ip, userAgent }) {
       userAgent,
       expiresAt,
     });
+    logger.info({ userId: user.id, deviceId: device, jti }, "Session created");
   }
 
+  logger.info({ userId: user.id, deviceId: device }, "User login success");
   return { accessToken, refreshToken, user: user.toJSON(), deviceId: device };
 }
 
@@ -81,6 +89,10 @@ export async function refresh({ refreshToken, deviceId, ip, userAgent }) {
       session.reuseDetectedAt = new Date();
       session.revokedAt = new Date();
       await session.save();
+      logger.warn(
+        { userId: sub, jti },
+        "Refresh token reuse detected (revoked)"
+      );
     }
     throw new Error("Invalid session");
   }
@@ -90,6 +102,7 @@ export async function refresh({ refreshToken, deviceId, ip, userAgent }) {
     session.reuseDetectedAt = new Date();
     session.revokedAt = new Date();
     await session.save();
+    logger.warn({ userId: sub, jti }, "Refresh token mismatch (revoked)");
     throw new Error("Token reuse detected");
   }
 
@@ -105,6 +118,7 @@ export async function refresh({ refreshToken, deviceId, ip, userAgent }) {
   session.ip = ip || session.ip;
   session.userAgent = userAgent || session.userAgent;
   await session.save();
+  logger.info({ userId: sub, deviceId: device, jti: newJti }, "Tokens rotated");
 
   return { accessToken, refreshToken: newRefreshToken, deviceId: device };
 }
@@ -115,6 +129,7 @@ export async function logout({ userId, deviceId, allDevices = false }) {
       { user: userId, revokedAt: { $exists: false } },
       { $set: { revokedAt: new Date() } }
     );
+    logger.info({ userId }, "Logout: revoked all devices");
     return { success: true };
   }
   if (deviceId) {
@@ -122,6 +137,7 @@ export async function logout({ userId, deviceId, allDevices = false }) {
       { user: userId, deviceId, revokedAt: { $exists: false } },
       { $set: { revokedAt: new Date() } }
     );
+    logger.info({ userId, deviceId }, "Logout: revoked deviceId");
   }
   return { success: true };
 }
