@@ -4,9 +4,26 @@ import { ZodError } from "zod";
 export function validate(schemas = {}) {
   return (req, res, next) => {
     try {
-      if (schemas.body) req.body = schemas.body.parse(req.body ?? {});
-      if (schemas.params) req.params = schemas.params.parse(req.params ?? {});
-      if (schemas.query) req.query = schemas.query.parse(req.query ?? {});
+      const validated = {};
+      if (schemas.body) {
+        const parsed = schemas.body.parse(req.body ?? {});
+        Object.assign(req.body || (req.body = {}), parsed);
+        validated.body = parsed;
+      }
+      if (schemas.params) {
+        const parsed = schemas.params.parse(req.params ?? {});
+        // Express 5 req.params is read-only (getter); mutate the returned object instead of reassigning
+        Object.assign(req.params || (req.params = {}), parsed);
+        validated.params = parsed;
+      }
+      if (schemas.query) {
+        const parsed = schemas.query.parse(req.query ?? {});
+        // Express 5 req.query is a getter; do not reassign, just mutate
+        Object.assign(req.query || (req.query = {}), parsed);
+        validated.query = parsed;
+      }
+      // Optional: keep a snapshot of validated data
+      req.validated = validated;
       next();
     } catch (err) {
       if (err instanceof ZodError) {

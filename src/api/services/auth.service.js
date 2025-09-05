@@ -37,15 +37,32 @@ export async function login({ email, password, deviceId, ip, userAgent }) {
 
   const hashedToken = await hashToken(refreshToken);
   const expiresAt = addDays(new Date(), 30); // default 30d, align with config if needed
-  await Session.create({
+
+  const existingSession = await Session.findOne({
     user: user._id,
     deviceId: device,
-    jti,
-    hashedToken,
-    ip,
-    userAgent,
-    expiresAt,
+    revokedAt: { $exists: false },
   });
+
+  if (existingSession) {
+    existingSession.hashedToken = hashedToken;
+    existingSession.jti = jti;
+    existingSession.lastUsedAt = new Date();
+    existingSession.ip = ip || existingSession.ip;
+    existingSession.userAgent = userAgent || existingSession.userAgent;
+    existingSession.expiresAt = expiresAt;
+    await existingSession.save();
+  } else {
+    await Session.create({
+      user: user._id,
+      deviceId: device,
+      jti,
+      hashedToken,
+      ip,
+      userAgent,
+      expiresAt,
+    });
+  }
 
   return { accessToken, refreshToken, user: user.toJSON(), deviceId: device };
 }
