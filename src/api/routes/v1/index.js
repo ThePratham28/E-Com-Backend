@@ -1,6 +1,7 @@
 import { Router } from "express";
 import authRoutes from "./auth.routes.js";
 import sessionsRoutes from "./sessions.routes.js";
+import categoryRoutes from "./category.routes.js";
 
 const router = Router();
 
@@ -11,5 +12,6 @@ router.get("/status", (req, res) => {
 
 router.use("/auth", authRoutes);
 router.use("/sessions", sessionsRoutes);
+router.use("/categories", categoryRoutes);
 
 export default router;
